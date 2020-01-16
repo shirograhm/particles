@@ -1,0 +1,47 @@
+# Max2Mtl Version 4.0 Mar 10th, 2001
+#
+# Multi/Sub Scanline_Globe (5) to come 
+#
+newmtl Gold
+Ka  0.54 0.33 0.15
+Kd  0.54 0.33 0.15
+Ks  0.90 0.90 0.90
+d  1.00
+Ns  0.00
+illum 2
+#
+newmtl Material__120
+Ka  0.29 0.09 0.02
+Kd  0.29 0.09 0.02
+Ks  0.90 0.90 0.90
+d  1.00
+Ns  0.00
+illum 2
+#
+newmtl Rubber
+Ka  0.04 0.04 0.04
+Kd  0.04 0.04 0.04
+Ks  0.90 0.90 0.90
+d  1.00
+Ns  0.00
+illum 2
+#
+newmtl Gold
+Ka  0.54 0.33 0.15
+Kd  0.54 0.33 0.15
+Ks  0.90 0.90 0.90
+d  1.00
+Ns  0.00
+illum 2
+#
+newmtl 02_-_Default
+Ka  0.50 0.50 0.50
+Kd  0.50 0.50 0.50
+Ks  0.90 0.90 0.90
+d  1.00
+Ns  0.00
+illum 2
+#
+# Multi/Sub Scanline_Globe done 
+#
+# EOF
