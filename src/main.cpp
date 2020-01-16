@@ -18,7 +18,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#define NUMBER_OF_FIREFLIES 500
+#define NUMBER_OF_FIREFLIES 50
 #define FIREFLIES_PER_CLICK 10
 
 class Application : public EventCallbacks
@@ -336,7 +336,7 @@ public:
 	void update(float dtime) {
 		for (Particle* fly : fireflies) {
 			// Update individual particle
-			fly->update(dtime); 
+			fly->update(dtime);
 			// Apply center is attractive if toggled
 			if (isCenterPointAttractive) {
 				// Get distance from center
@@ -355,10 +355,11 @@ public:
 			}
 			// Apply small random force in any direction to simulate fly flight
 			fly->addForce(vec3(generateRandomFloat(-0.15f, 0.15f), generateRandomFloat(-0.15f, 0.15f), generateRandomFloat(-0.15f, 0.15f)));
-			// Check to make sure we don't surpass 500 (arbitrary limit, defined for shader because shaders don't like variable arrays?)
-			if (fireflies.size() > NUMBER_OF_FIREFLIES - FIREFLIES_PER_CLICK) {
-				fireflies.erase(fireflies.begin());
-			}
+		}
+
+		// Check to make sure we don't surpass 500 (arbitrary limit, defined for shader because shaders don't like variable arrays?)
+		if (fireflies.size() > NUMBER_OF_FIREFLIES - FIREFLIES_PER_CLICK) {
+			fireflies.erase(fireflies.begin());
 		}
 	}
 
@@ -368,29 +369,29 @@ public:
 		glfwGetFramebufferSize(windowManager->getHandle(), &width, &height);
 		// Set window size
 		glViewport(0, 0, width, height);
-		
 		// Bind and clear bloom framebuffer
 		glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-		// Draw objects to our bound FBO (bloomFBO) *** the scene shader has outputs to 2 color attachments ***
-		drawObjects(width, height, time);
-		
-		// Reset framebuffer
-		// Gaussian blur brightness
-		gaussianBlurPingPongCode(width, height);
 
+
+		// Draw objects to our bound FBO (bloomFBO)
+		// *** the scene shader has outputs to 2 color attachments ***
+		drawObjects(width, height, time);
+
+		// Gaussian blur brightness passes
+		gaussianBlurPingPongCode(width, height);
 		// Bind and clear screen framebuffer
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+		// Bind final shader
 		finalShader->bind();
 		// Bind normal scene photo texture
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, bloomColorBuffers[0]);
-		// Bind bloom lights texture
+		// Bind bloomed lights texture
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, pingPongTextures[!horizontal]);
+		// Render to billboard
 		renderQuad();
 		finalShader->unbind();
 	}
@@ -410,7 +411,7 @@ public:
 			glActiveTexture(GL_TEXTURE0);
 			// Bind texture to blur
 			glBindTexture(GL_TEXTURE_2D, firstPass ? bloomColorBuffers[1] : pingPongTextures[!horizontal]);
-			// Render billboard normally
+			// Render billboard to ping pong FBO
 			renderQuad();
 			// Flip blur axis
 			horizontal = !horizontal;
@@ -432,7 +433,7 @@ public:
 				 1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
 				 1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
 			};
-			
+
 			// setup plane VAO
 			glGenVertexArrays(1, &quadVAO);
 			glGenBuffers(1, &quadVBO);
@@ -517,8 +518,10 @@ public:
 			M->popMatrix();
 		}
 
+
 		// Translate scene back (instead of moving camera position, which we could do instead)
-		M->translate(vec3(0, 0, -2));
+		M->translate(centerPoint);
+
 		// Draw globe
 		for (Shape* part : globe) {
 			M->pushMatrix();

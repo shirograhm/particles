@@ -2,7 +2,7 @@
 in vec3 fragNormal;
 in vec3 fragPosition;
 
-uniform vec3 lights[500];
+uniform vec3 lights[50];
 uniform vec3 shapeColor;
 uniform float shininess;
 uniform bool isLightSource;
@@ -33,24 +33,24 @@ vec3 calculatePointLight(vec3 lightPosition) {
 }
 
 void main() {
-	// Initialization of variables
-	vec3 result = vec3(0);
-
-	// Summation calculation for multiple lights
-	for (int i = 0; i < lights.length(); i++) {
-		result += calculatePointLight(lights[i]);
-	}
-	result /= lights.length();
-
-	// Output normal color to first attachment (layout = 0)
-	color = vec4(result, 1.0);
-
 	// Output light color if its a firefly
 	if (isLightSource) {
 		color = vec4(lightColor, 1.0);
+	} else {
+		// Initialization of variables
+		vec3 result = vec3(0);
+
+		// Summation calculation for multiple lights
+		for (int i = 0; i < lights.length(); i++) {
+			result += calculatePointLight(lights[i]);
+		}
+		result /= lights.length();
+
+		// Output normal color to first attachment if not light (layout = 0)
+		color = vec4(result, 1.0);
 	}
 
-	// Bloom calculation for second attachment (layout = 1)
+	// Bloom calculation for second attachment for both light and normal geometry (layout = 1)
 	float brightnessThreshold = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
 	if (brightnessThreshold > 0.90f) {
 		brights = vec4(color.rgb, 1.0f);
