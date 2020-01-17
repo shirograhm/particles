@@ -18,7 +18,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#define NUMBER_OF_FIREFLIES 50
+#define NUMBER_OF_FIREFLIES 500
 #define FIREFLIES_PER_CLICK 10
 
 class Application : public EventCallbacks
@@ -42,6 +42,9 @@ public:
 	vector<Particle*> fireflies;
 	// Existing magnets
 	vector<Particle*> magnets;
+
+	// Textures
+	Texture* globeMapTexture;
 
 	// Framebuffer for bloom
 	GLuint bloomFBO;
@@ -126,14 +129,18 @@ public:
 
 			if (!isMagnetModeOn) {
 				for (int i = 0; i < FIREFLIES_PER_CLICK; i++) {
-					vec3 randVelo = vec3(generateRandomFloat(-0.15f, 0.15f), generateRandomFloat(-0.15f, 0.15f), generateRandomFloat(-0.15f, 0.15f));
-					fireflies.push_back(new Particle(generateRandomFloat(0.7f, 1.2f), vec3(worldSpaceX, worldSpaceY, -2), randVelo, vec3(0, 0, 0)));
+					vec3 randVelo = generateRandomVelocityVector();
+					fireflies.push_back(new Particle(generateRandomFloat(0.7f, 1.2f), vec3(worldSpaceX, worldSpaceY, centerPoint.z), randVelo, vec3(0, 0, 0)));
 				}
 			}
 			else {
-				magnets.push_back(new Particle(2.0f, vec3(worldSpaceX, worldSpaceY, generateRandomFloat(-2.5, -1.5)), vec3(0), vec3(0)));
+				magnets.push_back(new Particle(2.0f, vec3(worldSpaceX, worldSpaceY, generateRandomFloat(centerPoint.z - 0.5f, centerPoint.z + 0.5f)), vec3(0), vec3(0)));
 			}
 		}
+	}
+
+	vec3 generateRandomVelocityVector() {
+		return vec3(generateRandomFloat(-0.05f, 0.05f), generateRandomFloat(-0.05f, 0.05f), generateRandomFloat(-0.05f, 0.05f));
 	}
 
 	void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
@@ -163,7 +170,7 @@ public:
 		// Initialize peripherals
 		initializeShaderPrograms(resourceDirectory);
 		initializeGeometry(resourceDirectory);
-
+		initializeTextures(resourceDirectory);
 		// Create bloomFBO and color attachments
 		initializeBloomFBOs(width, height);
 		// Create FBO for ping pong blurring of bloom
@@ -232,6 +239,14 @@ public:
 		}
 	}
 
+	void initializeTextures(const std::string& resource) {
+		globeMapTexture = new Texture();
+		globeMapTexture->setFilename(resource + "/mp.jpg");
+		globeMapTexture->setWrapModes(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
+		globeMapTexture->setUnit(0);
+		globeMapTexture->init();
+	}
+
 	void initializeShaderPrograms(const std::string& resource) {
 		using ::std::cerr;
 		using ::std::endl;
@@ -278,7 +293,9 @@ public:
 		sceneShader->addUniform("P");
 		sceneShader->addUniform("V");
 		sceneShader->addUniform("M");
+		sceneShader->addUniform("globeTexture");
 		sceneShader->addUniform("isLightSource");
+		sceneShader->addUniform("isGlobeSphere");
 		sceneShader->addUniform("lights");
 		sceneShader->addUniform("shininess");
 		sceneShader->addUniform("shapeColor");
@@ -354,12 +371,14 @@ public:
 				if (glm::length(forceVector) < 1.0f) fly->addForce(forceVector);
 			}
 			// Apply small random force in any direction to simulate fly flight
-			fly->addForce(vec3(generateRandomFloat(-0.15f, 0.15f), generateRandomFloat(-0.15f, 0.15f), generateRandomFloat(-0.15f, 0.15f)));
+			fly->addForce(generateRandomVelocityVector());
 		}
 
 		// Check to make sure we don't surpass 500 (arbitrary limit, defined for shader because shaders don't like variable arrays?)
 		if (fireflies.size() > NUMBER_OF_FIREFLIES - FIREFLIES_PER_CLICK) {
-			fireflies.erase(fireflies.begin());
+			for (int i = 0; i < FIREFLIES_PER_CLICK; i++) {
+				fireflies.erase(fireflies.begin() + i);
+			}
 		}
 	}
 
@@ -470,31 +489,38 @@ public:
 		M->pushMatrix();
 		M->loadIdentity();
 
-		// Bind scene shader
-		sceneShader->bind();
-		// Generate light position arrays
+		// Generate light positions array
 		vec3 lightsArray[NUMBER_OF_FIREFLIES];
 		for (int f = 0; f < fireflies.size(); f++) {
 			lightsArray[f] = fireflies[f]->position;
 		}
+
+		// Bind scene shader
+		sceneShader->bind();
+
+		// Send common uniforms over
+		glUniformMatrix4fv(sceneShader->getUniform("P"), 1, GL_FALSE, value_ptr(P->topMatrix()));
+		glUniformMatrix4fv(sceneShader->getUniform("V"), 1, GL_FALSE, value_ptr(V->topMatrix()));
+		glUniform3fv(sceneShader->getUniform("lights"), NUMBER_OF_FIREFLIES, value_ptr(lightsArray[0]));
+		glUniform1i(sceneShader->getUniform("isGlobeSphere"), false);
+		// Bind texture
+		glUniform1i(sceneShader->getUniform("globeTexture"), 0);
+		globeMapTexture->bind(sceneShader->getUniform("globeTexture"));
+
 		// Draw fireflies
 		for (Particle* fly : fireflies) {
 			M->pushMatrix();
 			M->translate(fly->position);
 			M->scale(0.01f);
 
-			glUniformMatrix4fv(sceneShader->getUniform("P"), 1, GL_FALSE, value_ptr(P->topMatrix()));
-			glUniformMatrix4fv(sceneShader->getUniform("V"), 1, GL_FALSE, value_ptr(V->topMatrix()));
 			glUniformMatrix4fv(sceneShader->getUniform("M"), 1, GL_FALSE, value_ptr(M->topMatrix()));
-			glUniform1i(sceneShader->getUniform("isLightSource"), 1);
-			glUniform3fv(sceneShader->getUniform("lights"), NUMBER_OF_FIREFLIES, value_ptr(lightsArray[0]));
+			glUniform1i(sceneShader->getUniform("isLightSource"), true);
 			glUniform3f(sceneShader->getUniform("shapeColor"), 0.85, 0.75, 0.60);
 			glUniform1f(sceneShader->getUniform("shininess"), 15.0f);
 
 			for (Shape* part : sphere) {
 				part->draw(sceneShader);
 			}
-
 			M->popMatrix();
 		}
 		// Draw magnets
@@ -503,63 +529,59 @@ public:
 			M->translate(ma->position);
 			M->scale(0.1f);
 
-			glUniformMatrix4fv(sceneShader->getUniform("P"), 1, GL_FALSE, value_ptr(P->topMatrix()));
-			glUniformMatrix4fv(sceneShader->getUniform("V"), 1, GL_FALSE, value_ptr(V->topMatrix()));
 			glUniformMatrix4fv(sceneShader->getUniform("M"), 1, GL_FALSE, value_ptr(M->topMatrix()));
-			glUniform1i(sceneShader->getUniform("isLightSource"), 0);
-			glUniform3fv(sceneShader->getUniform("lights"), NUMBER_OF_FIREFLIES, value_ptr(lightsArray[0]));
+			glUniform1i(sceneShader->getUniform("isLightSource"), false);
 			glUniform3f(sceneShader->getUniform("shapeColor"), 0.21, 0.21, 0.21);
 			glUniform1f(sceneShader->getUniform("shininess"), 0.8f);
 
 			for (Shape* s : sphere) {
 				s->draw(sceneShader);
 			}
-
 			M->popMatrix();
 		}
-
 
 		// Translate scene back (instead of moving camera position, which we could do instead)
 		M->translate(centerPoint);
 
 		// Draw globe
-		for (Shape* part : globe) {
+		for (int shapeNum = 0; shapeNum < globe.size(); shapeNum++) {
 			M->pushMatrix();
 			M->scale(globeScale);
 			M->translate(-globeOffset);
 
-			glUniformMatrix4fv(sceneShader->getUniform("P"), 1, GL_FALSE, value_ptr(P->topMatrix()));
-			glUniformMatrix4fv(sceneShader->getUniform("V"), 1, GL_FALSE, value_ptr(V->topMatrix()));
+			if (shapeNum == 9) {
+				glUniform1i(sceneShader->getUniform("isGlobeSphere"), true);
+			}
+
 			glUniformMatrix4fv(sceneShader->getUniform("M"), 1, GL_FALSE, value_ptr(M->topMatrix()));
-			glUniform1i(sceneShader->getUniform("isLightSource"), 0);
-			glUniform3fv(sceneShader->getUniform("lights"), NUMBER_OF_FIREFLIES, value_ptr(lightsArray[0]));
+			glUniform1i(sceneShader->getUniform("isLightSource"), false);
 			glUniform3f(sceneShader->getUniform("shapeColor"), 0.33, 0.40, 0.50);
 			glUniform1f(sceneShader->getUniform("shininess"), 1.2f);
 
-			part->draw(sceneShader);
-
+			globe[shapeNum]->draw(sceneShader);
 			M->popMatrix();
 		}
+
+		// Reset globe sphere texture
+		glUniform1i(sceneShader->getUniform("isGlobeSphere"), false);
+
 		// Draw table
-		for (Shape* t : table) {
+		for (Shape* pt : table) {
 			M->pushMatrix();
 			M->translate(vec3(0, -0.68, 0));
 			M->scale(tableScale);
 			M->translate(-tableOffset);
-
-			glUniformMatrix4fv(sceneShader->getUniform("P"), 1, GL_FALSE, value_ptr(P->topMatrix()));
-			glUniformMatrix4fv(sceneShader->getUniform("V"), 1, GL_FALSE, value_ptr(V->topMatrix()));
+			
 			glUniformMatrix4fv(sceneShader->getUniform("M"), 1, GL_FALSE, value_ptr(M->topMatrix()));
-			glUniform1i(sceneShader->getUniform("isLightSource"), 0);
-			glUniform3fv(sceneShader->getUniform("lights"), NUMBER_OF_FIREFLIES, value_ptr(lightsArray[0]));
+			glUniform1i(sceneShader->getUniform("isLightSource"), false);
 			glUniform3f(sceneShader->getUniform("shapeColor"), 0.70, 0.40, 0.25);
 			glUniform1f(sceneShader->getUniform("shininess"), 0.2f);
 
-			t->draw(sceneShader);
-
+			pt->draw(sceneShader);
 			M->popMatrix();
 		}
-
+		// Unbind texture
+		globeMapTexture->unbind();
 		// Unbind
 		sceneShader->unbind();
 

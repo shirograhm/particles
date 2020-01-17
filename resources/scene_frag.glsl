@@ -1,19 +1,23 @@
 #version 330 core
 in vec3 fragNormal;
 in vec3 fragPosition;
+in vec2 fragTexture;
 
-uniform vec3 lights[50];
+uniform sampler2D globeTexture;
+
+uniform vec3 lights[500];
 uniform vec3 shapeColor;
 uniform float shininess;
 uniform bool isLightSource;
+uniform bool isGlobeSphere;
 
 layout(location = 0) out vec4 color;
 layout(location = 1) out vec4 brights;
 
 // Fixed light color
-vec3 lightColor = vec3(0.95, 0.90, 0.85);
+vec3 lightColor = vec3(0.85, 0.80, 0.75);
 
-vec3 calculatePointLight(vec3 lightPosition) {
+vec3 calculatePointLight(vec3 lightPosition, vec3 shapeColorIn) {
 	// Fixed camera position
 	vec3 camPosition = vec3(0);
 
@@ -29,7 +33,7 @@ vec3 calculatePointLight(vec3 lightPosition) {
 	vec3 diffuse = max(dot(N, L), 0) * lightColor;
 	vec3 specular = pow(max(dot(V, R), 0), shininess) * lightColor;
 
-	return (ambient + diffuse + specular) * attenuation * shapeColor;
+	return (ambient + diffuse + specular) * attenuation * shapeColorIn;
 }
 
 void main() {
@@ -42,7 +46,8 @@ void main() {
 
 		// Summation calculation for multiple lights
 		for (int i = 0; i < lights.length(); i++) {
-			result += calculatePointLight(lights[i]);
+			vec3 texSample = texture(globeTexture, fragTexture).rgb;
+			result += calculatePointLight(lights[i], isGlobeSphere ? texSample : shapeColor);
 		}
 		result /= lights.length();
 
@@ -51,7 +56,7 @@ void main() {
 	}
 
 	// Bloom calculation for second attachment for both light and normal geometry (layout = 1)
-	float brightnessThreshold = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+	float brightnessThreshold = dot(color.rgb, vec3(0.3126, 0.7152, 0.1722));
 	if (brightnessThreshold > 0.90f) {
 		brights = vec4(color.rgb, 1.0f);
 	}

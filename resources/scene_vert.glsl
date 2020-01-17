@@ -9,6 +9,7 @@ uniform mat4 M;
 
 out vec3 fragNormal;
 out vec3 fragPosition;
+out vec2 fragTexture;
 
 void main()
 {
@@ -16,4 +17,5 @@ void main()
 
 	fragPosition = vec3(M * vec4(vertPos, 1.0));
 	fragNormal = vertNor;
+	fragTexture = vertTex;
 }
